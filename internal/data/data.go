@@ -2,8 +2,14 @@ package data
 
 import (
 	"spaco_go/internal/conf"
+	"time"
+
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/google/wire"
+	"gorm.io/driver/mysql"
+	"gorm.io/gorm"
+
+	_ "github.com/go-sql-driver/mysql"
 )
 
 // ProviderSet is data providers.
@@ -12,12 +18,47 @@ var ProviderSet = wire.NewSet(NewData, NewGreeterRepo)
 // Data .
 type Data struct {
 	// TODO warpped database client
+	// client ent.Client
+	db *gorm.DB
 }
 
 // NewData .
 func NewData(c *conf.Data, logger log.Logger) (*Data, func(), error) {
-	cleanup := func() {
-		logger.Log("msg", "closing the data resources")
+	log := log.NewHelper("data", logger)
+
+	dsn := "root:123!@#qwe@tcp(127.0.0.1:3306)/kratos_demo?charset=utf8mb4&parseTime=True&loc=Local"
+	client, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
+
+	if err != nil {
+		log.Errorf("failed opening connection to mysql: %v", err)
+		return nil, nil, err
 	}
-	return &Data{}, cleanup, nil
+	client.AutoMigrate(&GreeterEntity{})
+
+	// // Run the auto migration tool.
+	// if err := client.Schema.Create(context.Background()); err != nil {
+	// 	log.Errorf("failed creating schema resources: %v", err)
+	// 	return nil, nil, err
+	// }
+	sqlDB, err := client.DB()
+
+	// SetMaxIdleConns 用于设置连接池中空闲连接的最大数量。
+	sqlDB.SetMaxIdleConns(10)
+	// SetMaxOpenConns 设置打开数据库连接的最大数量。
+	sqlDB.SetMaxOpenConns(100)
+	// SetConnMaxLifetime 设置了连接可复用的最大时间。
+	sqlDB.SetConnMaxLifetime(time.Hour)
+
+	d := &Data{
+		db: client,
+	}
+	return d, func() {
+		logger.Log("message", "closing the data resources")
+		sqlDB, err := d.db.DB()
+		if err != nil {
+			logger.Log("message", "DB也报错了", err)
+			return
+		}
+		sqlDB.Close()
+	}, nil
 }

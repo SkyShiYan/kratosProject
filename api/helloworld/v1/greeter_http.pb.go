@@ -30,7 +30,7 @@ func NewGreeterHandler(srv GreeterHandler, opts ...http1.HandleOption) http.Hand
 	}
 	r := mux.NewRouter()
 
-	r.HandleFunc("/helloworld/{name}", func(w http.ResponseWriter, r *http.Request) {
+	r.HandleFunc("/v1/{name}", func(w http.ResponseWriter, r *http.Request) {
 		var in HelloRequest
 		if err := h.Decode(r, &in); err != nil {
 			h.Error(w, r, err)
